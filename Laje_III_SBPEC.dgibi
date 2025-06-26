@@ -1,0 +1,196 @@
+************************************************************************
+************************************************************************
+*======================================================================*
+*         MODELO ELASTICO LINEAR - LAJE - ELEM. FINITOS SOLIDO         *
+*                                                                      *
+*   III Simpósio Brasileiro sobre Punção                               *
+*   em Estruturas de Concreto (III SBPEC) - 28 e 29 de Agosto / 2025   *
+*                                                                      *
+*                                                                      *
+*   Contribuicao de Philipe Q. R.  - Universidade Estadual de Campinas *
+*   Contribuicao de Dr. Hugo L. O. - Universidade Estadual de Campinas *
+*======================================================================*
+* Para mais informacões, veja o artigo publicado nos anais do congresso*
+*======================================================================*
+*
+*************************************************************************
+OPTI 'LANG' 'ANGL' ;
+*
+OPTI DIME 3 ELEM QUA4  ;
+OPTI 'ELEM ' 'CU20 ' ;
+*
+* UNIDADES EM MILÍMETROS
+*
+* *--------------- DADOS --------------- *
+*
+YOP = 21287 ;
+NUP = 0.2 ; 
+esp = 130. ;
+L1 = 1800. ;
+N1 = 30 ;
+N2 = 30 ;
+NQ = 4 ;
+RA = 75.;
+PILAR = 150.;
+*
+*************************************************************************
+*
+* *--------------- DEFINIÇÃO DOS PONTOS --------------- *
+*
+P1 = 0. 0. 0. ;
+P2 = L1 0. 0. ;
+P3 = L1 L1 0. ;
+P4 = 0. L1 0. ;
+P5 = (L1/2) (L1/2) 0. ;
+P6 = P5 PLUS ((PILAR) 0. 0.) ;
+P7 = P6 PLUS (RA 0. 0.) ;
+PQ1 = P5 PLUS (((-1)*PILAR/2) (PILAR/2) 0.) ;
+PQ2 = P5 PLUS ((PILAR/2) (PILAR/2) 0.) ;
+PQ3 = P5 PLUS ((PILAR/2) ((-1)*PILAR/2) 0.) ;
+PQ4 = P5 PLUS (((-1)*PILAR/2) ((-1)*PILAR/2) 0.) ;
+p11 = P7 PLUS (0. 0. -1.) ;
+cin = CERC N2 'ROTA' 360. P6 P7 p11 'ELIM' ;
+*
+*************************************************************************
+*
+* *-------------- Criação do contorno da laje e do pilar -------------- *
+*
+L1X = 'DROI' N1 P1 P2 ;
+L2Y = 'DROI' N1 P2 P3 ;
+L3X = 'DROI' N1 P3 P4 ;
+L4Y = 'DROI' N1 P4 P1 ;
+*
+LQ1 = 'DROI' NQ PQ1 PQ2 ;
+LQ2 = 'DROI' NQ PQ2 PQ3 ;
+LQ3 = 'DROI' NQ PQ3 PQ4 ;
+LQ4 = 'DROI' NQ PQ4 PQ1 ;
+*
+COLUMN = LQ1 ET LQ2 ET LQ3 ET LQ4 ;
+CEX = L1X ET L2Y ET L3X ET L4Y ;
+*
+*************************************************************************
+* *-------------- MALHANDO A SUPERFICIE -------------- *
+*
+SUFPILEX = SURF COLUMN 'PLAN' ;
+PILARIN = INVE COLUMN ;
+SUFPILIN = SURF PILARIN 'PLAN' ;
+S1 = SURF (cin ET CEX ET COLUMN ) 'PLAN' ;
+*
+* *--------- MALHANDO O VOLUME POR TRANSLAÇÃO -------- *
+*
+VOLPIN = SUFPILIN VOLU 6 'TRAN ' (0. 0. esp) ;
+VOLPEX = SUFPILEX VOLU 6 'TRAN ' (0. 0. ((-2)*esp)) ;
+TRAC 'CACH ' (VOLPEX ET VOLPIN) ;
+*
+VOLAJ = S1 VOLU 6 'TRAN ' (0. 0. esp) ;
+TRAC 'CACH ' (VOLAJ) ;
+*
+VOLTOT = VOLAJ ET VOLPEX ET VOLPIN ;
+ELIM 1.E-10 VOLTOT ;
+VOLU2 = REGE VOLTOT ;
+TRAC (VOLU2) 'CACH '  ;
+*
+*************************************************************************
+*-------------------DEFINIÇÃO DO MODELO E DO MATERIAL-------------------*
+*
+MOD1 = MODE VOLU2 MECANIQUE ELASTIQUE ;
+MAT1 = MATE MOD1 YOUN YOP NU NUP ;
+*
+* MATRIZ DE RIGIDEZ
+MATOT = MAT1 ;
+MODTOT = MOD1 ;
+RIG1 = RIGI MATOT MODTOT ; 
+*
+*************************************************************************
+*-------------------IMPOSIÇÃO CONDICÃO DE CONTORNO-------------------*
+*
+SS1 = ENVE VOLU2;
+ARE1 = ARET VOLU2 ;
+*
+ZCORD = COOR 3 SS1 ;
+LIST RESU ZCORD;
+PTCON = ZCORD POIN 'EGAL ' -260. ;
+SUCON = SS1 ELEM 'APPU ' 'STRI ' PTCON ;
+TRAC 'FACE ' ( SUCON COUL 'TURQ ') ARE1 ;
+*
+CL1 = BLOQ DEPLA ROTA SUCON;
+CLTOT = CL1 ;
+RIG1 = RIG1 ET CLTOT ;
+*
+*************************************************************************
+*-------------------APLICAÇÃO DO CARREGAMENTO --------------------------*
+*
+ZCHARG = COOR 3 SS1 ;
+PTCHARG = ZCHARG POIN 'EGAL ' 130. ;
+ELECHAR = SS1 ELEM 'APPU ' 'STRI ' PTCHARG ;
+TRAC 'FACE ' ( ELECHAR COUL 'BLEU ') ARE1 ;
+* ACELERAÇAO GRAVITACIONAL EM mm/s^2
+AG = 9.81 * 1000. ;
+MASS1 = 648;
+PRESS1 = ( MASS1 * AG )/ ( MESU ELECHAR ) ;
+CARRQ = PRES 'MASS ' MOD1 PRESS1 ELECHAR ;
+VECF1 = VECT CARRQ 'FORC ' 'VERT ' 5.E-3 ;
+TRAC VECF1 ( ARE1 ) ;
+FTOT = CARRQ;
+*
+*************************************************************************
+*-------------------RESOLUÇÃO SISTEMA DE EQUAÇÕES ----------------------*
+*
+RES1 = RESO RIG1 FTOT ;
+*
+*************************************************************************
+*-------------------POS PROCESSAMENTO ----------------------------------*
+LMOTS1 = MOTS 'UZ';
+ZZ1 = 'EXCO' LMOTS1 RES1 LMOTS1 'NATU' 'DISCRET';
+TRAC ZZ1 VOLU2 ;
+*
+*--------------------DEFORADA----------------------------*
+*
+def61 = DEFO VOLU2 RES1 4. 'ROUG';
+TRAC 'CACH' def61 ;
+*
+*-------------------TENSOES SIGMA  ----------------------*
+*
+SIG1 = SIGM MODTOT MATOT RES1 ;
+def61a = DEFO VOLU2 RES1 4. 'NOIR';
+TRAC SIG1 MODTOT def61a ARE1;
+*
+*-------------------TENSOES PRINCIPAIS -------------------*
+*
+CHAM2 = PRIN SIG1 MODTOT ;
+*
+LMOTS2 = MOTS 'SI11' ;
+SIGMA11 = 'EXCO' LMOTS2 CHAM2 LMOTS2 ;
+TRAC SIGMA11 MODTOT def61a ARE1;
+*
+LMOTS2 = MOTS 'SI22' ;
+SIGMA22 = 'EXCO' LMOTS2 CHAM2 LMOTS2 ;
+TRAC SIGMA22 MODTOT def61a ARE1;
+*
+LMOTS2 = MOTS 'SI33' ;
+SIGMA33 = 'EXCO' LMOTS2 CHAM2 LMOTS2 ;
+TRAC SIGMA33 MODTOT def61a ARE1;
+*
+*-------------------DIREÇÕES PRINCIPAIS  ------------------*
+*
+POI1 = ( 0. (L1/2) 0.);
+POI2 = ( L1 (L1/2) 0.);
+POI3 = (L1 (L1/2) esp);
+POI4 = (0. (L1/2) esp);
+*
+LMOTS2 = (MOTS 'COX1' 'COY1' 'COZ1' 'COX2' 'COY2' 'COZ2' 'COX3' 'COY3' 'COZ3') ;
+COSDIRX1 = 'EXCO' LMOTS2 CHAM2 LMOTS2 ;
+CHP2 = CHAN  'CHPO'  MODTOT COSDIRX1;
+*
+ESCALA = 2.E+1 ;
+VECSG11 = VECT CHP2  ESCALA  (MOTS 'COX1' 'COY1' 'COZ1');
+VECSIG22 = VECT CHP2  ESCALA  (MOTS 'COX2' 'COY2' 'COZ2');
+VECSIG33 = VECT CHP2  ESCALA  (MOTS 'COX3' 'COY3' 'COZ3');
+*
+OEIL1 = ((L1/2) -4000. 1000.);
+TRAC ( VECSG11 COUL 'BLEU ') VOLU2 OEIL1 'SECT' POI1 POI2 POI3 ;
+TRAC ( VECSIG22 COUL 'VERT ') VOLU2 OEIL1 'SECT' POI1 POI2 POI3 ;
+TRAC ( VECSIG33 COUL 'ROUG ') VOLU2 OEIL1 'SECT' POI1 POI2 POI3 ;
+*
+FIN;
+
